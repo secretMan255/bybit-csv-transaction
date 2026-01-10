@@ -290,7 +290,7 @@ export default function Dashboard() {
                         {x.coin}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        /{x.quote}
+                        / {x.quote}
                       </span>
                     </div>
                     <div className="text-right text-sm">
