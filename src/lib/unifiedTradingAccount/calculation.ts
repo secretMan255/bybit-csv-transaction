@@ -1,4 +1,8 @@
-import type { FeesBreakdown, ParsedRow, ParseResult } from "@/page/dashboard";
+import type {
+  FeesBreakdown,
+  ParsedRow,
+  ParseResult,
+} from "@/page/dashboard/unifiedTrading/index";
 import { toUpper } from "../utils";
 import type {
   CoinKey,

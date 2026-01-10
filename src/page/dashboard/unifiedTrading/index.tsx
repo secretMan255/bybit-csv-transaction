@@ -16,7 +16,7 @@ import {
   isBybitAssetChangeDetailsUtaCsv,
   parseCsv,
   getTradeCoinsFromUtaAssetChange,
-} from "@/lib/unifiedTradingAccount/unifiedTradingAccount";
+} from "@/lib/unifiedTradingAccount/calculation";
 import type { TradeCoinsResult } from "@/lib/unifiedTradingAccount/type";
 import { convertFees, moneyFormatAmount } from "@/lib/utils";
 import { FileUp } from "lucide-react";
