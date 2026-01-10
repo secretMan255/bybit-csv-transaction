@@ -15,7 +15,9 @@ import {
   getLastWalletBalance,
   isBybitAssetChangeDetailsUtaCsv,
   parseCsv,
-} from "@/lib/unifiedTradingAccount";
+  getTradeCoinsFromUtaAssetChange,
+} from "@/lib/unifiedTradingAccount/unifiedTradingAccount";
+import type { TradeCoinsResult } from "@/lib/unifiedTradingAccount/type";
 import { convertFees, moneyFormatAmount } from "@/lib/utils";
 import { FileUp } from "lucide-react";
 import { useRef, useState } from "react";
@@ -68,6 +70,8 @@ export default function Dashboard() {
   const [net, setNet] = useState<string>("0.00");
   const [walletBalance, setWalletBalance] = useState<string>("0.00");
 
+  const [tradeCoins, setTradeCoins] = useState<TradeCoinsResult>();
+
   function resetAll(opts?: { keepFileName?: boolean; warnings?: string[] }) {
     setFileName("");
     setRows(0);
@@ -78,6 +82,7 @@ export default function Dashboard() {
     setWalletBalance("0.00");
     setFees(undefined);
     setWarnings(opts?.warnings ?? []);
+    setTradeCoins(undefined);
   }
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -105,6 +110,9 @@ export default function Dashboard() {
       const lastBalance = getLastWalletBalance(result.rows);
       const fees = feesPaid(result.rows);
 
+      const tradeCoins = getTradeCoinsFromUtaAssetChange(result.rows);
+      // console.log("tradeCoins: ", tradeCoins);
+      setTradeCoins(tradeCoins);
       setFees(fees);
       setRows(result.rows.length);
       setParsedRows(result.rows);
@@ -112,8 +120,8 @@ export default function Dashboard() {
       setWalletBalance(moneyFormatAmount(lastBalance));
       setHeaders(result.headers);
 
-      console.log("file name: ", file.name);
-      console.log("result: ", result);
+      // console.log("file name: ", file.name);
+      // console.log("result: ", result);
     } catch (err: any) {
     } finally {
       e.target.value = "";
@@ -215,7 +223,7 @@ export default function Dashboard() {
         <div className="h-6" />
 
         <div className="grid gap-4 md:grid-col-1 lg:grid-cols-3">
-          <MetricCard
+          {/* <MetricCard
             title="Revenue"
             value={`${revenue} USD`}
             subtitle="Sum (filtered)"
@@ -224,7 +232,7 @@ export default function Dashboard() {
             title="Net"
             value={`${net} USD`}
             subtitle="Revenue - Cost"
-          />
+          /> */}
           <MetricCard
             title="Last Balance"
             value={`${walletBalance} USD`}
@@ -263,6 +271,135 @@ export default function Dashboard() {
         </div>
 
         <div className="h-6" />
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>1) Bought coins</CardTitle>
+              <CardDescription>TRADE + BUY (base coin)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {tradeCoins?.bought?.length ? (
+                tradeCoins.bought.map((x) => (
+                  <div
+                    key={`${x.coin}-${x.quote}`}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge className="rounded-xl" variant="secondary">
+                        {x.coin}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        /{x.quote}
+                      </span>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-medium">
+                        {x.totalQty
+                          .toFixed(8)
+                          .replace(/0+$/, "")
+                          .replace(/\.$/, "")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        avg {x.avgPrice.toFixed(6)}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No BUY trades found.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>2) Sold coins</CardTitle>
+              <CardDescription>TRADE + SELL (base coin)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {tradeCoins?.sold?.length ? (
+                tradeCoins.sold.map((x) => (
+                  <div
+                    key={`${x.coin}-${x.quote}`}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge className="rounded-xl" variant="secondary">
+                        {x.coin}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        / {x.quote}
+                      </span>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-medium">
+                        {x.totalQty
+                          .toFixed(8)
+                          .replace(/0+$/, "")
+                          .replace(/\.$/, "")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        avg {x.avgPrice.toFixed(6)}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No SELL trades found.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>3) Positions</CardTitle>
+              <CardDescription>
+                BUY vs SELL → OPEN / CLOSED / PARTIAL
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {tradeCoins?.positions?.length ? (
+                tradeCoins.positions.map((p) => (
+                  <div
+                    key={`${p.coin}-${p.quote}`}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge className="rounded-xl" variant="outline">
+                        {p.coin}
+                      </Badge>
+                      <Badge className="rounded-xl" variant="secondary">
+                        {p.status}
+                      </Badge>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-medium">
+                        net{" "}
+                        {p.netQty
+                          .toFixed(8)
+                          .replace(/0+$/, "")
+                          .replace(/\.$/, "")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        buy {p.buy.qty.toFixed(4)} / sell{" "}
+                        {p.sell.qty.toFixed(4)}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No positions found.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

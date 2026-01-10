@@ -1,5 +1,11 @@
 import type { FeesBreakdown, ParsedRow, ParseResult } from "@/page/dashboard";
-import { toUpper } from "./utils";
+import { toUpper } from "../utils";
+import type {
+  CoinKey,
+  CoinPosition,
+  CoinTradeSummary,
+  TradeCoinsResult,
+} from "./type";
 
 export function isBybitAssetChangeDetailsUtaCsv(file: File) {
   const name = file.name.trim();
@@ -289,7 +295,7 @@ export function feesPaid(rows: ParsedRow[]): FeesBreakdown {
 
     // A) Trading fee
     if (type === "TRADE") {
-      tradingFeesUSDT += feePaidToUSDT(row); // 保留原符号（通常为负）
+      tradingFeesUSDT += feePaidToUSDT(row);
     }
 
     // B) Funding: SETTLEMENT
@@ -327,4 +333,185 @@ export function feesPaid(rows: ParsedRow[]): FeesBreakdown {
     fundingCostUSDT,
     netCostUSDT,
   };
+}
+
+/**
+ * Derive "bought coins", "sold coins", and "positions" from Bybit UTA
+ * AssetChangeDetails CSV rows.
+ *
+ * IMPORTANT:
+ * - Do NOT compute average price from "Change" bucket pairing. It is easy to mismatch
+ *   base/quote legs (fees, adjustments, missing legs, etc.) and produce impossible prices.
+ * - Use execution-like fields instead:
+ *   - Base quantity: abs(Quantity) on the BASE coin row (Currency != USDT/USDC/USD)
+ *   - Execution price: Filled Price
+ *   - Quote amount: qty * price
+ *
+ * Output:
+ * 1) bought: coins with TRADE + BUY
+ * 2) sold:   coins with TRADE + SELL
+ * 3) positions: merge buy & sell -> OPEN/CLOSED/PARTIAL
+ */
+export function getTradeCoinsFromUtaAssetChange(
+  rows: ParsedRow[]
+): TradeCoinsResult {
+  const eps = 1e-12;
+  const QUOTE_COINS = new Set(["USDT", "USDC", "USD"]);
+
+  // --- Helpers -------------------------------------------------------------
+
+  const safeUpper = (v: unknown) => toUpper(v ?? "");
+
+  const getQuoteFromContract = (contract: string): string => {
+    // Expand if you have more quote currencies
+    if (contract.endsWith("USDC")) return "USDC";
+    if (contract.endsWith("USDT")) return "USDT";
+    if (contract.endsWith("USD")) return "USD";
+    // Fallback
+    return "USDT";
+  };
+
+  type Agg = {
+    coin: string; // base coin
+    quote: string;
+    totalQty: number; // base quantity (abs)
+    totalQuoteAmount: number; // quote amount (cost/proceed)
+    trades: number; // number of contributing rows (approx)
+  };
+
+  const upsertAgg = (
+    map: Map<string, Agg>,
+    base: string,
+    quote: string,
+    qty: number,
+    quoteAmt: number
+  ) => {
+    const key = `${base}|${quote}`;
+    const prev = map.get(key);
+
+    const totalQty = (prev?.totalQty ?? 0) + qty;
+    const totalQuoteAmount = (prev?.totalQuoteAmount ?? 0) + quoteAmt;
+
+    map.set(key, {
+      coin: base,
+      quote,
+      totalQty,
+      totalQuoteAmount,
+      trades: (prev?.trades ?? 0) + 1,
+    });
+  };
+
+  // --- A) Aggregate BUY/SELL using Filled Price * Quantity -----------------
+
+  const buyAgg = new Map<string, Agg>();
+  const sellAgg = new Map<string, Agg>();
+
+  for (const row of rows) {
+    // Only analyze TRADE rows
+    const type = safeUpper(row.raw["Type"] ?? row.category ?? "");
+    if (type !== "TRADE") continue;
+
+    // BUY / SELL
+    const direction = safeUpper(row.raw["Direction"] ?? row.raw["Side"] ?? "");
+    if (direction !== "BUY" && direction !== "SELL") continue;
+
+    const currency = safeUpper(row.raw["Currency"] ?? "");
+    const contract = safeUpper(row.raw["Contract"] ?? row.raw["Symbol"] ?? "");
+    if (!currency || !contract) continue;
+
+    // Only take BASE coin rows; ignore quote coin rows to avoid double counting and noise
+    if (QUOTE_COINS.has(currency)) continue;
+
+    // Base quantity is Quantity (BUY often positive, SELL often negative) -> use abs
+    const qty = Math.abs(parseNumberMaybe(String(row.raw["Quantity"] ?? "")));
+    if (qty <= eps) continue;
+
+    // Execution price
+    const price = parseNumberMaybe(String(row.raw["Filled Price"] ?? ""));
+    if (price <= eps) continue;
+
+    // Quote currency inferred from contract suffix (BTCUSDT -> USDT)
+    const quote = getQuoteFromContract(contract);
+
+    // Quote amount: qty * execution price
+    const quoteAmt = qty * price;
+
+    if (direction === "BUY") upsertAgg(buyAgg, currency, quote, qty, quoteAmt);
+    else upsertAgg(sellAgg, currency, quote, qty, quoteAmt);
+  }
+
+  // --- B) Convert to CoinTradeSummary arrays ------------------------------
+
+  const bought: CoinTradeSummary[] = Array.from(buyAgg.values())
+    .map((a) => ({
+      coin: a.coin,
+      quote: a.quote,
+      totalQty: a.totalQty,
+      totalQuoteAmount: a.totalQuoteAmount,
+      avgPrice: a.totalQty > eps ? a.totalQuoteAmount / a.totalQty : 0,
+      trades: a.trades,
+    }))
+    .sort((x, y) => x.coin.localeCompare(y.coin));
+
+  const sold: CoinTradeSummary[] = Array.from(sellAgg.values())
+    .map((a) => ({
+      coin: a.coin,
+      quote: a.quote,
+      totalQty: a.totalQty,
+      totalQuoteAmount: a.totalQuoteAmount,
+      avgPrice: a.totalQty > eps ? a.totalQuoteAmount / a.totalQty : 0,
+      trades: a.trades,
+    }))
+    .sort((x, y) => x.coin.localeCompare(y.coin));
+
+  // --- C) Build positions (merge buy & sell) ------------------------------
+
+  const buyMap = new Map<CoinKey, CoinTradeSummary>(
+    bought.map((x) => [`${x.coin}|${x.quote}`, x])
+  );
+  const sellMap = new Map<CoinKey, CoinTradeSummary>(
+    sold.map((x) => [`${x.coin}|${x.quote}`, x])
+  );
+
+  const allKeys = new Set<CoinKey>([...buyMap.keys(), ...sellMap.keys()]);
+  const positions: CoinPosition[] = [];
+
+  for (const key of allKeys) {
+    const buy = buyMap.get(key);
+    const sell = sellMap.get(key);
+
+    const coin = buy?.coin ?? sell?.coin ?? "";
+    const quote = buy?.quote ?? sell?.quote ?? "USDT";
+
+    const buyQty = buy?.totalQty ?? 0;
+    const buyCost = buy?.totalQuoteAmount ?? 0;
+    const buyAvg = buyQty > eps ? buyCost / buyQty : 0;
+
+    const sellQty = sell?.totalQty ?? 0;
+    const sellProceed = sell?.totalQuoteAmount ?? 0;
+    const sellAvg = sellQty > eps ? sellProceed / sellQty : 0;
+
+    const netQty = buyQty - sellQty;
+
+    // Status rules:
+    // - CLOSED: netQty ~ 0
+    // - PARTIAL: some sells but not fully closed
+    // - OPEN: still holding > 0 net
+    let status: CoinPosition["status"] = "OPEN";
+    if (Math.abs(netQty) <= eps) status = "CLOSED";
+    else if (sellQty > eps && sellQty < buyQty - eps) status = "PARTIAL";
+
+    positions.push({
+      coin,
+      quote,
+      buy: { qty: buyQty, costQuote: buyCost, avgPrice: buyAvg },
+      sell: { qty: sellQty, proceedQuote: sellProceed, avgPrice: sellAvg },
+      netQty,
+      status,
+    });
+  }
+
+  positions.sort((a, b) => a.coin.localeCompare(b.coin));
+
+  return { bought, sold, positions };
 }
