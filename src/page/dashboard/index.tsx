@@ -21,6 +21,8 @@ import type { TradeCoinsResult } from "@/lib/unifiedTradingAccount/type";
 import { convertFees, moneyFormatAmount } from "@/lib/utils";
 import { FileUp } from "lucide-react";
 import { useRef, useState } from "react";
+import TradePosition from "./unifiedTrading/tradePosition";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export type ParsedRow = {
   __rowId: string;
@@ -272,134 +274,16 @@ export default function Dashboard() {
 
         <div className="h-6" />
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>1) Bought coins</CardTitle>
-              <CardDescription>TRADE + BUY (base coin)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {tradeCoins?.bought?.length ? (
-                tradeCoins.bought.map((x) => (
-                  <div
-                    key={`${x.coin}-${x.quote}`}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge className="rounded-xl" variant="secondary">
-                        {x.coin}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        / {x.quote}
-                      </span>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div className="font-medium">
-                        {x.totalQty
-                          .toFixed(8)
-                          .replace(/0+$/, "")
-                          .replace(/\.$/, "")}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        avg {x.avgPrice.toFixed(6)}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No BUY trades found.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>2) Sold coins</CardTitle>
-              <CardDescription>TRADE + SELL (base coin)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {tradeCoins?.sold?.length ? (
-                tradeCoins.sold.map((x) => (
-                  <div
-                    key={`${x.coin}-${x.quote}`}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge className="rounded-xl" variant="secondary">
-                        {x.coin}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        / {x.quote}
-                      </span>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div className="font-medium">
-                        {x.totalQty
-                          .toFixed(8)
-                          .replace(/0+$/, "")
-                          .replace(/\.$/, "")}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        avg {x.avgPrice.toFixed(6)}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No SELL trades found.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>3) Positions</CardTitle>
-              <CardDescription>
-                BUY vs SELL → OPEN / CLOSED / PARTIAL
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {tradeCoins?.positions?.length ? (
-                tradeCoins.positions.map((p) => (
-                  <div
-                    key={`${p.coin}-${p.quote}`}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge className="rounded-xl" variant="outline">
-                        {p.coin}
-                      </Badge>
-                      <Badge className="rounded-xl" variant="secondary">
-                        {p.status}
-                      </Badge>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div className="font-medium">
-                        net{" "}
-                        {p.netQty
-                          .toFixed(8)
-                          .replace(/0+$/, "")
-                          .replace(/\.$/, "")}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        buy {p.buy.qty.toFixed(4)} / sell{" "}
-                        {p.sell.qty.toFixed(4)}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No positions found.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="tradePosition" className="w-full">
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="tradePosition">Trade Position</TabsTrigger>
+            <TabsTrigger value="incoming">Incoming</TabsTrigger>
+            <TabsTrigger value="incoming2">Incoming</TabsTrigger>
+          </TabsList>
+          <TabsContent value="tradePosition">
+            <TradePosition tradeCoins={tradeCoins} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
