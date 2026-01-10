@@ -61,13 +61,13 @@ export default function Dashboard() {
   }
 
   const [rows, setRows] = useState<number>(0);
-  const [headers, setHeaders] = useState<string[]>([]);
+  // const [headers, setHeaders] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  // const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
 
-  const [revenue, setRevenue] = useState<string>("0.00");
+  // const [revenue, setRevenue] = useState<string>("0.00");
   const [fees, setFees] = useState<FeesBreakdown>();
-  const [net, setNet] = useState<string>("0.00");
+  // const [net, setNet] = useState<string>("0.00");
   const [walletBalance, setWalletBalance] = useState<string>("0.00");
 
   const [tradeCoins, setTradeCoins] = useState<TradeCoinsResult>();
@@ -75,10 +75,10 @@ export default function Dashboard() {
   function resetAll(opts?: { keepFileName?: boolean; warnings?: string[] }) {
     setFileName("");
     setRows(0);
-    setHeaders([]);
-    setParsedRows([]);
-    setRevenue("0.00");
-    setNet("0.00");
+    // setHeaders([]);
+    // setParsedRows([]);
+    // setRevenue("0.00");
+    // setNet("0.00");
     setWalletBalance("0.00");
     setFees(undefined);
     setWarnings(opts?.warnings ?? []);
@@ -115,10 +115,10 @@ export default function Dashboard() {
       setTradeCoins(tradeCoins);
       setFees(fees);
       setRows(result.rows.length);
-      setParsedRows(result.rows);
+      // setParsedRows(result.rows);
       setWarnings(result.warnings);
       setWalletBalance(moneyFormatAmount(lastBalance));
-      setHeaders(result.headers);
+      // setHeaders(result.headers);
 
       // console.log("file name: ", file.name);
       // console.log("result: ", result);

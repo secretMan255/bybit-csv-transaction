@@ -166,10 +166,10 @@ export function parseCsv(input: string): ParseResult {
   const headers = matrix[headerRowIndex].map(cleanHeader);
   const dataRows = matrix.slice(headerRowIndex + 1);
 
-  const idxTime = pickColumnIndex(headers, CANDIDATES.time);
-  const idxSymbol = pickColumnIndex(headers, CANDIDATES.symbol);
+  // const idxTime = pickColumnIndex(headers, CANDIDATES.time);
+  // const idxSymbol = pickColumnIndex(headers, CANDIDATES.symbol);
   const idxCategory = pickColumnIndex(headers, CANDIDATES.category);
-  const idxAccount = pickColumnIndex(headers, CANDIDATES.account);
+  // const idxAccount = pickColumnIndex(headers, CANDIDATES.account);
   const idxQty = pickColumnIndex(headers, CANDIDATES.qty);
   const idxAmount = pickColumnIndex(headers, CANDIDATES.amount);
   const idxRevenue = pickColumnIndex(headers, CANDIDATES.revenue);
