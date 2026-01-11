@@ -57,7 +57,7 @@ export type FeesBreakdown = {
 
 export default function UnifiedTradingAccount() {
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [fileName, setFileName] = useState<string>("");
+  const [fileNames, setFileNames] = useState<string[]>([]);
   function onPickFile() {
     fileRef.current?.click();
   }
@@ -75,7 +75,7 @@ export default function UnifiedTradingAccount() {
   const [tradeCoins, setTradeCoins] = useState<TradeCoinsResult>();
 
   function resetAll(opts?: { keepFileName?: boolean; warnings?: string[] }) {
-    setFileName("");
+    setFileNames([]);
     setRows(0);
     // setHeaders([]);
     // setParsedRows([]);
@@ -88,43 +88,53 @@ export default function UnifiedTradingAccount() {
   }
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files) return;
 
-    setFileName(file.name);
-    if (!isBybitAssetChangeDetailsUtaCsv(file)) {
-      resetAll({
-        keepFileName: true,
-        warnings: [
-          "Invalid CSV format.",
-          "Please upload Bybit export: AssetChangeDetails (UTA) CSV.",
-        ],
-      });
+    setFileNames(files.map((file) => file.name));
 
-      e.target.value = "";
-      return;
-    }
+    const allWarnings: string[] = [];
+    const allRows: ParsedRow[] = [];
 
     try {
-      const text = await file.text();
-      const result = parseCsv(text);
+      for (const file of files) {
+        if (!isBybitAssetChangeDetailsUtaCsv(file)) {
+          allWarnings.push(
+            `[${file.name}] Invalid CSV format. Please upload Bybit export: AssetChangeDetails (UTA) CSV.`
+          );
+          continue;
+        }
 
-      const lastBalance = getLastWalletBalance(result.rows);
-      const fees = feesPaid(result.rows);
+        const text = await file.text();
+        const result = parseCsv(text);
 
-      const tradeCoins = getTradeCoinsFromUtaAssetChange(result.rows);
-      // console.log("tradeCoins: ", tradeCoins);
+        allWarnings.push(...result.warnings.map((w) => `[${file.name}] ${w}`));
+        allRows.push(...result.rows);
+      }
+
+      if (!allRows.length) {
+        resetAll({
+          keepFileName: true,
+          warnings: allWarnings.length ? allWarnings : ["No valid rows found."],
+        });
+
+        return;
+      }
+
+      const lastBalance = getLastWalletBalance(allRows);
+      const fees = feesPaid(allRows);
+      const tradeCoins = getTradeCoinsFromUtaAssetChange(allRows);
+
       setTradeCoins(tradeCoins);
       setFees(fees);
-      setRows(result.rows.length);
-      // setParsedRows(result.rows);
-      setWarnings(result.warnings);
+      setRows(allRows.length);
+      setWarnings(allWarnings);
       setWalletBalance(moneyFormatAmount(lastBalance));
-      // setHeaders(result.headers);
-
-      // console.log("file name: ", file.name);
-      // console.log("result: ", result);
     } catch (err: any) {
+      setWarnings((prev) => [
+        ...prev,
+        `Unexpected error: ${String(err?.message ?? err)}`,
+      ]);
     } finally {
       e.target.value = "";
     }
@@ -157,6 +167,7 @@ export default function UnifiedTradingAccount() {
             ref={fileRef}
             type="file"
             accept=".csv,text/csv,.txt"
+            multiple
             onChange={onFileChange}
           />
 
@@ -171,18 +182,24 @@ export default function UnifiedTradingAccount() {
               </Button>
 
               <div className="min-w-0 w-full sm:flex-1">
-                {fileName ? (
+                {fileNames ? (
                   <div className="min-w-0 w-full sm:flex-1">
                     <Badge
                       variant="secondary"
                       className="rounded-xl w-full min-w-0"
                     >
-                      <code
-                        className="block w-full min-w-0 rounded-md bg-muted px-2 py-1 text-xs leading-snug
-                 whitespace-normal break-all"
-                      >
-                        {fileName}
-                      </code>
+                      <div className="w-full min-w-0 max-h-16 overflow-y-auto">
+                        <div className="flex flex-col gap-1">
+                          {fileNames.map((name) => (
+                            <code
+                              key={name}
+                              className="block w-full min-w-0 rounded-md bg-muted px-2 py-1 text-xs leading-snug whitespace-normal break-all"
+                            >
+                              {name}
+                            </code>
+                          ))}
+                        </div>
+                      </div>
                     </Badge>
                   </div>
                 ) : (

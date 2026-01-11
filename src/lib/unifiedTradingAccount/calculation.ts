@@ -260,14 +260,30 @@ export function parseCsv(input: string): ParseResult {
 }
 
 export function getLastWalletBalance(rows: ParsedRow[]) {
-  const first = rows.find((row) => {
-    const value = row.raw["Wallet Balance"];
-    return value != null && String(value).trim() !== "";
-  });
+  let latest: ParsedRow | undefined;
+  let latestMs = -Infinity;
 
-  if (!first) return 0;
+  for (const row of rows) {
+    const timestamp = String(row.raw["Time(UTC)"] ?? "").trim();
+    const balance = String(row.raw["Wallet Balance"] ?? "").trim();
+    if (!balance) continue;
 
-  return parseNumberMaybe(String(first.raw["Wallet Balance"] ?? ""));
+    const ms = timestamp ? Date.parse(timestamp.replace(" ", "T") + "Z") : NaN;
+    if (!Number.isNaN(ms) && ms > latestMs) {
+      latestMs = ms;
+      latest = row;
+    }
+  }
+
+  if (latest)
+    return parseNumberMaybe(String(latest.raw["Wallet Balance"] ?? ""));
+
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const balance = String(rows[i].raw["Wallet Balance"] ?? "").trim();
+    if (balance) return parseNumberMaybe(balance);
+  }
+
+  return 0;
 }
 
 export function feePaidToUSDT(row: ParsedRow): number {
