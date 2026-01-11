@@ -69,7 +69,7 @@ export default function UnifiedTradingAccount() {
   }
 
   const [rows, setRows] = useState<number>(0);
-  const [headers, setHeaders] = useState<string[]>([]);
+  //   const [headers, setHeaders] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<FileWarning[]>([]);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
 
@@ -86,7 +86,7 @@ export default function UnifiedTradingAccount() {
   }) {
     setFileNames([]);
     setRows(0);
-    setHeaders([]);
+    // setHeaders([]);
     setParsedRows([]);
     // setRevenue("0.00");
     // setNet("0.00");
@@ -152,7 +152,7 @@ export default function UnifiedTradingAccount() {
       const fees = feesPaid(allRows);
       const tradeCoins = getTradeCoinsFromUtaAssetChange(allRows);
 
-      setHeaders(pickedHeaders ?? []);
+      //   setHeaders(pickedHeaders ?? []);
       setParsedRows(allRows);
       setRows(allRows.length);
       setFees(fees);
@@ -337,7 +337,7 @@ export default function UnifiedTradingAccount() {
               <TradePosition tradeCoins={tradeCoins} />
             </TabsContent>
             <TabsContent value="transaction">
-              <Transaction headers={headers} parsedRows={parsedRows} />
+              <Transaction parsedRows={parsedRows} />
             </TabsContent>
           </Tabs>
         </CardContent>
