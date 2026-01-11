@@ -23,6 +23,7 @@ import { FileUp } from "lucide-react";
 import { useRef, useState } from "react";
 import TradePosition from "../unifiedTrading/tradePosition";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Transaction from "./transaction";
 
 export type ParsedRow = {
   __rowId: string;
@@ -41,6 +42,11 @@ export type ParseResult = {
   headers: string[];
   rows: ParsedRow[];
   warnings: string[];
+};
+
+export type FileWarning = {
+  fileName: string;
+  messages: string[];
 };
 
 export type FeesBreakdown = {
@@ -63,9 +69,9 @@ export default function UnifiedTradingAccount() {
   }
 
   const [rows, setRows] = useState<number>(0);
-  // const [headers, setHeaders] = useState<string[]>([]);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  // const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<FileWarning[]>([]);
+  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
 
   // const [revenue, setRevenue] = useState<string>("0.00");
   const [fees, setFees] = useState<FeesBreakdown>();
@@ -74,11 +80,14 @@ export default function UnifiedTradingAccount() {
 
   const [tradeCoins, setTradeCoins] = useState<TradeCoinsResult>();
 
-  function resetAll(opts?: { keepFileName?: boolean; warnings?: string[] }) {
+  function resetAll(opts?: {
+    keepFileName?: boolean;
+    warnings?: FileWarning[];
+  }) {
     setFileNames([]);
     setRows(0);
-    // setHeaders([]);
-    // setParsedRows([]);
+    setHeaders([]);
+    setParsedRows([]);
     // setRevenue("0.00");
     // setNet("0.00");
     setWalletBalance("0.00");
@@ -89,35 +98,53 @@ export default function UnifiedTradingAccount() {
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    if (!files) return;
+    if (!files.length) return;
 
     setFileNames(files.map((file) => file.name));
 
-    const allWarnings: string[] = [];
     const allRows: ParsedRow[] = [];
-
+    const warningsByFile = new Map<string, string[]>();
+    let pickedHeaders: string[] | null = null;
     try {
       for (const file of files) {
+        const messages: string[] = [];
+
         if (!isBybitAssetChangeDetailsUtaCsv(file)) {
-          allWarnings.push(
-            `[${file.name}] Invalid CSV format. Please upload Bybit export: AssetChangeDetails (UTA) CSV.`
+          messages.push(
+            "Invalid CSV format. Please upload Bybit AssetChangeDetails (UTA)."
           );
+          warningsByFile.set(file.name, messages);
           continue;
         }
 
         const text = await file.text();
         const result = parseCsv(text);
 
-        allWarnings.push(...result.warnings.map((w) => `[${file.name}] ${w}`));
+        if (!pickedHeaders && result.headers?.length)
+          pickedHeaders = result.headers;
+
+        if (result.warnings?.length) {
+          messages.push(...result.warnings);
+        }
+
+        if (messages.length) {
+          warningsByFile.set(file.name, messages);
+        }
+
         allRows.push(...result.rows);
       }
+
+      const groupedWarnings: FileWarning[] = Array.from(
+        warningsByFile.entries()
+      ).map(([fileName, messages]) => ({ fileName, messages }));
 
       if (!allRows.length) {
         resetAll({
           keepFileName: true,
-          warnings: allWarnings.length ? allWarnings : ["No valid rows found."],
+          warnings: groupedWarnings.length
+            ? groupedWarnings
+            : [{ fileName: "All files", messages: ["No valid rows found."] }],
         });
-
         return;
       }
 
@@ -125,15 +152,19 @@ export default function UnifiedTradingAccount() {
       const fees = feesPaid(allRows);
       const tradeCoins = getTradeCoinsFromUtaAssetChange(allRows);
 
-      setTradeCoins(tradeCoins);
-      setFees(fees);
+      setHeaders(pickedHeaders ?? []);
+      setParsedRows(allRows);
       setRows(allRows.length);
-      setWarnings(allWarnings);
+      setFees(fees);
+      setTradeCoins(tradeCoins);
       setWalletBalance(moneyFormatAmount(lastBalance));
+      setWarnings(groupedWarnings);
     } catch (err: any) {
-      setWarnings((prev) => [
-        ...prev,
-        `Unexpected error: ${String(err?.message ?? err)}`,
+      setWarnings([
+        {
+          fileName: "System",
+          messages: [`Unexpected error: ${String(err?.message ?? err)}`],
+        },
       ]);
     } finally {
       e.target.value = "";
@@ -182,7 +213,7 @@ export default function UnifiedTradingAccount() {
               </Button>
 
               <div className="min-w-0 w-full sm:flex-1">
-                {fileNames ? (
+                {fileNames.length > 0 ? (
                   <div className="min-w-0 w-full sm:flex-1">
                     <Badge
                       variant="secondary"
@@ -223,11 +254,20 @@ export default function UnifiedTradingAccount() {
             <Alert>
               <AlertTitle>Parsing notes</AlertTitle>
               <AlertDescription>
-                <ul className="list-disc space-y-1 pl-5">
-                  {warnings.slice(0, 6).map((w, idx) => (
-                    <li key={idx}>{w}</li>
+                <div className="space-y-3">
+                  {warnings.slice(0, 6).map((fw) => (
+                    <div key={fw.fileName} className="space-y-1">
+                      <div className="text-xs font-medium text-muted-foreground break-all">
+                        {fw.fileName}
+                      </div>
+                      <ul className="list-disc space-y-1 pl-5">
+                        {fw.messages.map((msg, idx) => (
+                          <li key={idx}>{msg}</li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </AlertDescription>
             </Alert>
           )}
@@ -290,11 +330,14 @@ export default function UnifiedTradingAccount() {
           <Tabs defaultValue="tradePosition" className="w-full">
             <TabsList className="w-full grid grid-cols-3">
               <TabsTrigger value="tradePosition">Trade Position</TabsTrigger>
-              <TabsTrigger value="incoming">Incoming</TabsTrigger>
+              <TabsTrigger value="transaction">Transaction</TabsTrigger>
               <TabsTrigger value="incoming2">Incoming</TabsTrigger>
             </TabsList>
             <TabsContent value="tradePosition">
               <TradePosition tradeCoins={tradeCoins} />
+            </TabsContent>
+            <TabsContent value="transaction">
+              <Transaction headers={headers} parsedRows={parsedRows} />
             </TabsContent>
           </Tabs>
         </CardContent>
