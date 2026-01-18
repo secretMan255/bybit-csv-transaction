@@ -111,7 +111,7 @@ export default function UnifiedTradingAccount() {
 
         if (!isBybitAssetChangeDetailsUtaCsv(file)) {
           messages.push(
-            "Invalid CSV format. Please upload Bybit AssetChangeDetails (UTA)."
+            "Invalid CSV format. Please upload Bybit AssetChangeDetails (UTA).",
           );
           warningsByFile.set(file.name, messages);
           continue;
@@ -135,7 +135,7 @@ export default function UnifiedTradingAccount() {
       }
 
       const groupedWarnings: FileWarning[] = Array.from(
-        warningsByFile.entries()
+        warningsByFile.entries(),
       ).map(([fileName, messages]) => ({ fileName, messages }));
 
       if (!allRows.length) {
@@ -148,7 +148,7 @@ export default function UnifiedTradingAccount() {
         return;
       }
 
-      const lastBalance = getLastWalletBalance(allRows);
+      const lastBalance = getLastWalletBalance(allRows, "USDT");
       const fees = feesPaid(allRows);
       const tradeCoins = getTradeCoinsFromUtaAssetChange(allRows);
 

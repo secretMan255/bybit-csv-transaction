@@ -101,7 +101,7 @@ function parseNumberMaybe(v: string): number {
 
 function pickColumnIndex(
   headers: string[],
-  candidates: string[]
+  candidates: string[],
 ): number | null {
   const normHeaders = headers.map(normalizeKey);
   for (const cand of candidates) {
@@ -189,11 +189,11 @@ export function parseCsv(input: string): ParseResult {
 
   if (!hasExplicitMetrics && idxAmount !== null && idxCategory !== null) {
     warnings.push(
-      "Detected Withdraw/Deposit History. Using Type+Amount: revenue=Deposit, cost=Withdraw."
+      "Detected Withdraw/Deposit History. Using Type+Amount: revenue=Deposit, cost=Withdraw.",
     );
   } else if (!hasExplicitMetrics && idxQty !== null) {
     warnings.push(
-      "Detected Asset Change Details. Using QTY sign: revenue=positive, cost=negative."
+      "Detected Asset Change Details. Using QTY sign: revenue=positive, cost=negative.",
     );
   }
 
@@ -247,7 +247,8 @@ export function parseCsv(input: string): ParseResult {
     .map((cols, i) => {
       const raw: Record<string, string> = {};
       headers.forEach((h, idx) => (raw[h] = cols[idx] ?? ""));
-      const get = (idx: number | null) => (idx === null ? "" : cols[idx] ?? "");
+      const get = (idx: number | null) =>
+        idx === null ? "" : (cols[idx] ?? "");
 
       return {
         __rowId: String(i + 1),
@@ -259,11 +260,14 @@ export function parseCsv(input: string): ParseResult {
   return { headers, rows, warnings };
 }
 
-export function getLastWalletBalance(rows: ParsedRow[]) {
+export function getLastWalletBalance(rows: ParsedRow[], coin: string) {
   let latest: ParsedRow | undefined;
   let latestMs = -Infinity;
 
   for (const row of rows) {
+    const rowCoin = String(row.raw["Currency"] ?? "").trim();
+
+    if (rowCoin !== coin) continue;
     const timestamp = String(row.raw["Time(UTC)"] ?? "").trim();
     const balance = String(row.raw["Wallet Balance"] ?? "").trim();
     if (!balance) continue;
@@ -277,11 +281,6 @@ export function getLastWalletBalance(rows: ParsedRow[]) {
 
   if (latest)
     return parseNumberMaybe(String(latest.raw["Wallet Balance"] ?? ""));
-
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const balance = String(rows[i].raw["Wallet Balance"] ?? "").trim();
-    if (balance) return parseNumberMaybe(balance);
-  }
 
   return 0;
 }
@@ -340,7 +339,7 @@ export function feesPaid(rows: ParsedRow[]): FeesBreakdown {
   const fundingCostUSDT = Math.max(0, -fundingPaidUSDT);
   const netCostUSDT = Math.max(
     0,
-    tradingCostUSDT + fundingCostUSDT - feeRefundUSDT
+    tradingCostUSDT + fundingCostUSDT - feeRefundUSDT,
   );
 
   return {
@@ -373,7 +372,7 @@ export function feesPaid(rows: ParsedRow[]): FeesBreakdown {
  * 3) positions: merge buy & sell -> OPEN/CLOSED/PARTIAL
  */
 export function getTradeCoinsFromUtaAssetChange(
-  rows: ParsedRow[]
+  rows: ParsedRow[],
 ): TradeCoinsResult {
   const eps = 1e-12;
   const QUOTE_COINS = new Set(["USDT", "USDC", "USD"]);
@@ -404,7 +403,7 @@ export function getTradeCoinsFromUtaAssetChange(
     base: string,
     quote: string,
     qty: number,
-    quoteAmt: number
+    quoteAmt: number,
   ) => {
     const key = `${base}|${quote}`;
     const prev = map.get(key);
@@ -487,10 +486,10 @@ export function getTradeCoinsFromUtaAssetChange(
   // --- C) Build positions (merge buy & sell) ------------------------------
 
   const buyMap = new Map<CoinKey, CoinTradeSummary>(
-    bought.map((x) => [`${x.coin}|${x.quote}`, x])
+    bought.map((x) => [`${x.coin}|${x.quote}`, x]),
   );
   const sellMap = new Map<CoinKey, CoinTradeSummary>(
-    sold.map((x) => [`${x.coin}|${x.quote}`, x])
+    sold.map((x) => [`${x.coin}|${x.quote}`, x]),
   );
 
   const allKeys = new Set<CoinKey>([...buyMap.keys(), ...sellMap.keys()]);
